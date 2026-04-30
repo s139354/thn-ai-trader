@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en" dir="ltr" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="THN AI Trader - professional AI-assisted market analysis workstation." />
+  <title>THN AI Trader</title>
+  <link rel="icon" href="logo.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Main navigation">
+      <a class="brand brand-lockup" href="#dashboard" aria-label="THN AI Trader dashboard">
+        <img src="logo.svg" alt="THN AI Trader logo" />
+        <div class="brand-text">
+          <strong>THN <span>AI TRADER</span></strong>
+          <small data-i18n="brandTagline">AI-powered market intelligence</small>
+        </div>
+      </a>
+      <nav class="nav-stack">
+        <button class="nav active" data-jump="dashboard" data-i18n="navDashboard">Dashboard</button>
+        <button class="nav" data-jump="analysis" data-i18n="navAnalysis">AI Analysis</button>
+        <button class="nav" data-jump="chart" data-i18n="navChart">TradingView</button>
+        <button class="nav" data-jump="risk" data-i18n="navRisk">Risk Desk</button>
+        <button class="nav" data-jump="journal" data-i18n="navJournal">Journal & Report</button>
+      </nav>
+      <div class="side-card">
+        <span class="pulse"></span>
+        <div>
+          <b id="apiStatus" data-i18n="apiChecking">Checking engine...</b>
+          <small id="modelStatus" data-i18n="modelInitializing">THN engine initializing</small>
+        </div>
+      </div>
+      <p class="tiny disclaimer" data-i18n="disclaimer">Educational analysis only. Always verify with your broker, calendar, and risk plan.</p>
+    </aside>
+
+    <main>
+      <div class="topbar panel">
+        <div class="topbar-brand">
+          <span class="brand-mark">THN</span>
+          <div>
+            <b class="wordmark"><span class="wordmark-core">THN</span><span class="wordmark-ai">AI</span><span class="wordmark-tail">Trader</span></b>
+            <small data-i18n="topbarSub">Professional multi-school AI trading workstation</small>
+          </div>
+        </div>
+        <details class="options-menu">
+          <summary data-i18n="options">Options</summary>
+          <div class="options-panel">
+            <label for="languageSelect" data-i18n="language">Language</label>
+            <div class="language-switch" role="group" aria-label="Language selector">
+              <button type="button" class="lang-pill active" data-language="en">English</button>
+              <button type="button" class="lang-pill" data-language="ar">العربية</button>
+            </div>
+            <select id="languageSelect" class="sr-only" aria-label="Language selector">
+              <option value="en">English</option>
+              <option value="ar">العربية</option>
+            </select>
+            <button class="ghost" id="themeBtn" type="button" data-i18n="toggleTheme">Toggle Theme</button>
+          </div>
+        </details>
+      </div>
+
+      <section class="hero panel-glow" id="dashboard">
+        <div class="hero-copy">
+          <p class="eyebrow" data-i18n="heroEyebrow">Professional AI trading workstation</p>
+          <h1 class="hero-title"><span class="title-core">THN</span> <span>AI Trader</span></h1>
+          <p class="subtitle" data-i18n="heroSubtitle">Enter one market code and the platform fetches data, analyzes the chart through multiple trading schools, builds a signal, calculates risk, and prepares an institutional-style report.</p>
+          <div class="feature-row" aria-label="Main features">
+            <span data-i18n="featTechnical">Technical</span><span data-i18n="featPriceAction">Price Action</span><span data-i18n="featSmc">SMC</span><span data-i18n="featQuant">Quant</span><span data-i18n="featRisk">Risk</span><span data-i18n="featReport">Report</span>
+          </div>
+          <div class="readiness-row" aria-label="Platform readiness">
+            <div><b data-i18n="readyBilingualTitle">Bilingual UI</b><small data-i18n="readyBilingualText">English and Arabic with RTL support</small></div>
+            <div><b data-i18n="readyAiTitle">Multi-school AI</b><small data-i18n="readyAiText">Consensus from technical, SMC, quant and sentiment modules</small></div>
+            <div><b data-i18n="readyRiskTitle">Risk-first</b><small data-i18n="readyRiskText">Position sizing, SL, TP and scenario planning</small></div>
+            <div><b data-i18n="readyReportTitle">Exportable reports</b><small data-i18n="readyReportText">Journal, checklist and institutional report</small></div>
+          </div>
+        </div>
+        <div class="command-card">
+          <label class="command-label" for="symbolInput" data-i18n="marketCode">Market / Currency Code</label>
+          <div class="command-line">
+            <input id="symbolInput" autocomplete="off" value="EURUSD" placeholder="EURUSD, XAUUSD, BTCUSDT, AAPL" data-i18n-placeholder="symbolPlaceholder" />
+            <button class="primary" id="analyzeBtn" data-i18n="analyze">Analyze</button>
+          </div>
+          <div class="quick-row">
+            <button class="chip" data-symbol="EURUSD">EURUSD</button>
+            <button class="chip" data-symbol="XAUUSD">XAUUSD</button>
+            <button class="chip" data-symbol="BTCUSDT">BTCUSDT</button>
+            <button class="chip" data-symbol="US30">US30</button>
+          </div>
+          <details class="advanced-box">
+            <summary data-i18n="advancedRisk">Advanced risk and context</summary>
+            <div class="advanced-grid">
+              <label><span data-i18n="timeframe">Timeframe</span>
+                <select id="timeframe">
+                  <option value="scalp" data-i18n="tfScalp">Scalp</option>
+                  <option value="intraday" selected data-i18n="tfIntraday">Intraday</option>
+                  <option value="swing" data-i18n="tfSwing">Swing</option>
+                  <option value="position" data-i18n="tfPosition">Position</option>
+                </select>
+              </label>
+              <label><span data-i18n="accountBalance">Account Balance</span>
+                <input id="accountBalance" type="number" value="10000" min="1" step="100" />
+              </label>
+              <label><span data-i18n="riskPercent">Risk %</span>
+                <input id="riskPct" type="number" value="1" min="0.05" max="10" step="0.05" />
+              </label>
+              <label><span data-i18n="rewardRisk">Reward / Risk</span>
+                <select id="rewardRisk">
+                  <option value="1.5">1 : 1.5</option>
+                  <option value="2" selected>1 : 2</option>
+                  <option value="3">1 : 3</option>
+                  <option value="4">1 : 4</option>
+                </select>
+              </label>
+              <label><span data-i18n="optionalSentiment">Optional sentiment</span>
+                <select id="sentiment">
+                  <option value="neutral" selected data-i18n="sentNeutral">Neutral / Unknown</option>
+                  <option value="bullish" data-i18n="sentBullish">Bullish Context</option>
+                  <option value="bearish" data-i18n="sentBearish">Bearish Context</option>
+                </select>
+              </label>
+              <label><span data-i18n="traderNotes">Trader notes</span>
+                <input id="notes" placeholder="Example: avoid CPI, wait for NY confirmation" data-i18n-placeholder="notesPlaceholder" />
+              </label>
+            </div>
+          </details>
+          <div class="status-line" id="statusMsg" data-i18n="readyStatus">Ready. Enter a symbol and press Analyze.</div>
+        </div>
+      </section>
+
+      <section class="ticker-strip" aria-label="Supported examples">
+        <div><span data-i18n="forex">Forex</span><b>EURUSD • GBPUSD • USDJPY</b></div>
+        <div><span data-i18n="metals">Metals</span><b>XAUUSD • XAGUSD</b></div>
+        <div><span data-i18n="crypto">Crypto</span><b>BTCUSDT • ETHUSDT</b></div>
+        <div><span data-i18n="indices">Indices</span><b>US30 • NAS100 • SPX</b></div>
+      </section>
+
+      <section class="decision-grid" id="analysis">
+        <article class="panel decision-card">
+          <div class="panel-head">
+            <div><p class="eyebrow" data-i18n="decisionCenter">AI decision center</p><h2 id="decisionTitle" data-i18n="awaitingAnalysis">Awaiting analysis</h2></div>
+            <span class="badge" id="sourceBadge">THN Engine</span>
+          </div>
+          <div class="decision-main">
+            <div>
+              <span class="mini" data-i18n="signal">Signal</span>
+              <strong id="decision" class="decision wait">WAIT</strong>
+              <p id="aiNarrative" data-i18n="runAnalysisNarrative">Run the analysis to generate a professional report.</p>
+            </div>
+            <div class="confidence-ring" aria-label="Confidence score">
+              <span id="confidence">--%</span>
+              <small data-i18n="confidence">confidence</small>
+            </div>
+          </div>
+          <div class="decision-meta">
+            <div><span data-i18n="grade">Grade</span><b id="grade">--</b></div>
+            <div><span data-i18n="symbol">Symbol</span><b id="symbolOut">--</b></div>
+            <div><span data-i18n="asset">Asset</span><b id="assetClass">--</b></div>
+            <div><span data-i18n="data">Data</span><b id="marketDataSource">--</b></div>
+          </div>
+        </article>
+
+        <article class="panel ticket-card">
+          <div class="panel-head"><h2 data-i18n="tradeTicket">Trade Ticket</h2><span id="marketTime">--</span></div>
+          <div class="ticket-levels">
+            <div><span data-i18n="entry">Entry</span><b id="entry">--</b></div>
+            <div><span data-i18n="stopLoss">Stop Loss</span><b id="stopLoss">--</b></div>
+            <div><span data-i18n="takeProfit1">Take Profit 1</span><b id="target1">--</b></div>
+            <div><span data-i18n="takeProfit2">Take Profit 2</span><b id="target2">--</b></div>
+            <div><span data-i18n="takeProfit3">Take Profit 3</span><b id="target3">--</b></div>
+            <div><span data-i18n="riskAmount">Risk Amount</span><b id="riskAmount">--</b></div>
+          </div>
+          <button class="ghost full" id="saveJournalBtn" data-i18n="saveSignal">Save Signal to Journal</button>
+        </article>
+      </section>
+
+      <section class="school-grid" id="schoolsGrid" aria-label="Multi-school analysis results"></section>
+
+      <section class="data-grid">
+        <article class="panel">
+          <div class="panel-head"><h2 data-i18n="technicalIndicators">Technical Indicators</h2><span data-i18n="liveCalculation">Live calculation</span></div>
+          <div class="table" id="indicatorTable"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><h2 data-i18n="structureSmc">Structure & SMC</h2><span data-i18n="supportResistanceLiquidity">Support, resistance, liquidity</span></div>
+          <div class="table" id="structureTable"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><h2 data-i18n="reasons">Reasons</h2><span data-i18n="whySignal">Why this signal?</span></div>
+          <ul class="clean-list" id="reasonsList"><li data-i18n="noAnalysisYet">No analysis yet.</li></ul>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><h2 data-i18n="warnings">Warnings</h2><span data-i18n="riskFilters">Risk filters</span></div>
+          <ul class="clean-list warning-list" id="warningsList"><li data-i18n="noAnalysisYet2">No analysis yet.</li></ul>
+        </article>
+      </section>
+
+      <section class="panel chart-panel" id="chart">
+        <div class="panel-head">
+          <div><h2 data-i18n="tradingViewChart">TradingView Professional Chart</h2><p id="tvSymbolText" data-i18n="chartWillLoad">Chart will load after analysis.</p></div>
+          <div class="button-row"><button class="ghost" id="loadChartBtn" data-i18n="reloadChart">Reload Chart</button></div>
+        </div>
+        <div id="tvChart" class="tv-chart"></div>
+      </section>
+
+      <section class="risk-grid" id="risk">
+        <article class="panel">
+          <div class="panel-head"><h2 data-i18n="riskDesk">Risk Desk</h2><span data-i18n="positionSizing">Position sizing</span></div>
+          <div class="table" id="riskTable"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><h2 data-i18n="executionChecklist">Execution Checklist</h2><span data-i18n="beforeEntry">Before entry</span></div>
+          <div class="checklist" id="checklist"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><h2 data-i18n="scenarioLab">Scenario Lab</h2><span data-i18n="riskAlternatives">Risk alternatives</span></div>
+          <div class="scenario-grid" id="scenarioGrid"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-head"><h2 data-i18n="backtestSimulator">Backtest Stress Simulator</h2><span data-i18n="estimatedProfile">Estimated profile</span></div>
+          <div class="table" id="backtestTable"></div>
+        </article>
+      </section>
+
+      <section class="journal-grid" id="journal">
+        <article class="panel">
+          <div class="panel-head"><h2 data-i18n="tradeJournal">Trade Journal</h2><span data-i18n="browserStorage">Browser local storage</span></div>
+          <div class="button-row"><button class="ghost" id="clearJournalBtn" data-i18n="clearJournal">Clear Journal</button><button class="ghost" id="exportJournalBtn" data-i18n="exportJournal">Export Journal</button></div>
+          <div id="journalList" class="journal-list"></div>
+        </article>
+        <article class="panel report-panel">
+          <div class="panel-head"><h2 data-i18n="institutionalReport">Institutional Report</h2><span data-i18n="copyOrExport">Copy or export</span></div>
+          <pre id="report" data-i18n="noReportYet">No report yet.</pre>
+          <div class="button-row"><button class="ghost" id="copyReportBtn" data-i18n="copyReport">Copy Report</button><button class="ghost" id="exportReportBtn" data-i18n="exportTxt">Export TXT</button></div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://s3.tradingview.com/tv.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

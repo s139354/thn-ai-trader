@@ -1,0 +1,40 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">THN AI Trader logo</title>
+  <desc id="desc">Premium THN AI Trader monogram with candlesticks, neural nodes, and an upward market arc.</desc>
+  <defs>
+    <linearGradient id="g" x1="70" y1="60" x2="440" y2="440" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2BF5C7"/>
+      <stop offset="0.48" stop-color="#17B7FF"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(252 254) rotate(90) scale(210)">
+      <stop stop-color="#2BF5C7" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#2BF5C7" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-35%" y="-35%" width="170%" height="170%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.08 0 0 0 0 0.93 0 0 0 0 0.82 0 0 0 0.68 0"/>
+      <feBlend in="SourceGraphic"/>
+    </filter>
+  </defs>
+  <rect x="18" y="18" width="476" height="476" rx="112" fill="#06101F" stroke="url(#g)" stroke-width="10"/>
+  <rect x="42" y="42" width="428" height="428" rx="92" fill="url(#halo)"/>
+  <path d="M112 310C151 214 207 262 246 172C276 103 344 96 397 123" stroke="url(#g)" stroke-width="22" stroke-linecap="round" filter="url(#glow)"/>
+  <path d="M387 119L397 123L391 134" stroke="#2BF5C7" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <g opacity="0.98">
+    <path d="M128 168V341" stroke="#F5FBFF" stroke-width="18" stroke-linecap="round"/>
+    <rect x="104" y="221" width="48" height="70" rx="10" fill="#2BF5C7"/>
+    <path d="M209 119V360" stroke="#F5FBFF" stroke-width="18" stroke-linecap="round"/>
+    <rect x="185" y="167" width="48" height="120" rx="10" fill="#17B7FF"/>
+    <path d="M291 178V338" stroke="#F5FBFF" stroke-width="18" stroke-linecap="round"/>
+    <rect x="267" y="226" width="48" height="70" rx="10" fill="#8B5CF6"/>
+  </g>
+  <g filter="url(#glow)">
+    <circle cx="351" cy="205" r="10" fill="#2BF5C7"/>
+    <circle cx="390" cy="250" r="8" fill="#17B7FF"/>
+    <circle cx="336" cy="286" r="8" fill="#8B5CF6"/>
+    <path d="M351 205L390 250L336 286L351 205Z" stroke="#89FFF0" stroke-width="5" opacity="0.78"/>
+  </g>
+  <text x="256" y="405" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="86" font-weight="950" letter-spacing="-5" fill="#F8FCFF">THN</text>
+  <text x="256" y="445" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="26" font-weight="900" letter-spacing="3" fill="url(#g)">AI TRADER</text>
+</svg>

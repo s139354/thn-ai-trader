@@ -1,0 +1,15 @@
+{
+  "name": "thn-ai-trader",
+  "version": "2.2.0",
+  "description": "THN AI Trader - bilingual professional AI-assisted trading workstation with premium branding, Arabic/English UI, RTL support, multi-school market analysis, risk management, TradingView charting, reports, and journaling.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "check": "node --check server.js && node --check public/app.js"
+  },
+  "dependencies": {}
+}
