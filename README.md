@@ -1,61 +1,46 @@
-# THN AI Trader v2.2
+# THN AI Trader Professional v6.0
 
-A professional bilingual AI-assisted trading workstation prototype upgraded into a complete web app package.
+# THN AI Trader Professional v5.0
 
-## What is included
+# THN AI Trader Professional v4.0
 
-- Premium **THN AI Trader** identity and SVG logo.
-- Professional responsive dashboard with dark/light themes.
-- **English / Arabic language switch** in the Options menu.
-- RTL Arabic layout support and Arabic report output.
-- Symbol-only workflow: enter `EURUSD`, `XAUUSD`, `BTCUSDT`, `US30`, `AAPL`, and similar codes.
-- Multi-school analysis engine:
-  - Technical analysis
-  - Price action
-  - Smart Money Concepts
-  - Quantitative model
-  - Sentiment / fundamental context
-- Consensus signal: BUY, SELL, or WAIT.
-- Confidence score, grade, explanation, warnings, and action plan.
-- Risk desk with position sizing, stop loss, take-profit levels, forex lots, exposure, and break-even win rate.
-- TradingView chart widget with major studies.
-- Scenario lab, execution checklist, backtest stress simulator, journal, CSV export, and institutional TXT report export.
-- Optional OpenAI enhancement through `.env`.
+Institutional-style bilingual AI trading workstation with a redesigned adaptive market map.
+
+## What is new in v4.0
+
+- Clearer professional analysis chart with adaptive price scaling so support/resistance and candles are no longer compressed by distant Fibonacci/outlier levels.
+- Layer toggles for candles, EMA stack, support/resistance, zones, Fibonacci, risk box, trend channel, volume, and patterns.
+- Market HUD below the chart showing live price, trend quality, nearest support, nearest resistance, and volume profile.
+- Analysis Layer Board showing every analysis school and diagnostics used by the engine.
+- Improved candlestick rendering, right-side price axis, risk/reward shading, current-price marker, session bands, volume pane, value area, and professional labels.
+- Safer watchlist alert-only automation remains enabled; live execution still requires broker authorization and compliance controls.
 
 ## Run
 
 ```bash
-cd THN_AI_Trader_Professional
+npm install
 npm start
 ```
 
-Open:
+Open `http://localhost:3000`.
 
-```text
-http://localhost:3000
-```
+## Notes
 
-## Optional OpenAI enhancement
+This application is an educational decision-support prototype. It is not financial advice and does not execute live orders.
 
-Copy `.env.example` to `.env` and add your key:
 
-```bash
-OPENAI_API_KEY=your_key_here
-```
+## v5.0 additions
+- Institutional analysis workspace upgrade.
+- Larger clearer analysis chart.
+- Technical drawing overlays plus SMC map (BOS / CHoCH, liquidity, order blocks, pivots).
+- Momentum pane below the price chart.
+- Two additional professional boards under the chart for chart reading and market structure.
 
-Without an API key, the app still works using the built-in local THN analytical engine.
 
-## Important note
-
-THN AI Trader is an educational and analytical decision-support system. It is not financial advice, does not guarantee profit, and every trade must still be checked against news, broker conditions, spreads, liquidity, and risk-management rules.
-
-## Version 2.2 polish
-
-This version specifically improves professionalism through:
-
-- Clickable Arabic/English language buttons in Options.
-- Persistent language preference using browser storage.
-- Arabic RTL layout and Arabic dynamic report generation.
-- Stronger THN wordmark styling, font sizing, and brand hierarchy.
-- Readiness cards explaining the platform coverage directly on the dashboard.
-- Syntax checks for the server and client JavaScript.
+## v6.0 professional additions
+- AI Automation Studio with automated copilot, smart alerts, risk governor and next-best action.
+- Cleaner professional analysis page with a large technical drawing chart.
+- Dedicated SK / SMC analysis chart for BOS/CHoCH, liquidity, pivots and order blocks.
+- Trade Compass panel connecting the AI decision, automation score and risk governor.
+- Reduced default chart clutter by moving SK/SMC and optional Fibonacci into separate views/layers.
+- The platform remains alert-only by design; live broker execution requires regulated broker integration and user authorization.

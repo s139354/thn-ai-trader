@@ -21,6 +21,7 @@
       <nav class="nav-stack">
         <button class="nav active" data-jump="dashboard" data-i18n="navDashboard">Dashboard</button>
         <button class="nav" data-jump="analysis" data-i18n="navAnalysis">AI Analysis</button>
+        <button class="nav" data-jump="watchlist" data-i18n="navWatchlist">Watchlist</button>
         <button class="nav" data-jump="chart" data-i18n="navChart">TradingView</button>
         <button class="nav" data-jump="risk" data-i18n="navRisk">Risk Desk</button>
         <button class="nav" data-jump="journal" data-i18n="navJournal">Journal & Report</button>
@@ -136,6 +137,56 @@
         <div><span data-i18n="indices">Indices</span><b>US30 • NAS100 • SPX</b></div>
       </section>
 
+
+
+      <section class="watchlist-grid" id="watchlist">
+        <article class="panel watchlist-panel">
+          <div class="panel-head">
+            <div><p class="eyebrow" data-i18n="watchlistEyebrow">Automation center</p><h2 data-i18n="favoritePairs">Favorite Pairs Watchlist</h2></div>
+            <span data-i18n="localBrowserStorage">Saved locally</span>
+          </div>
+          <p class="tiny trust-copy" data-i18n="watchlistIntro">Add the markets you trade most. THN will scan them as a professional alert workflow instead of blindly opening live trades.</p>
+          <div class="watch-command">
+            <input id="favoriteSymbolInput" autocomplete="off" placeholder="EURUSD, GBPUSD, XAUUSD" data-i18n-placeholder="favoritePlaceholder" />
+            <button class="primary" id="addFavoriteBtn" type="button" data-i18n="addPair">Add Pair</button>
+          </div>
+          <div class="quick-row compact">
+            <button class="chip favorite-chip" data-favorite="EURUSD">EURUSD</button>
+            <button class="chip favorite-chip" data-favorite="GBPUSD">GBPUSD</button>
+            <button class="chip favorite-chip" data-favorite="USDJPY">USDJPY</button>
+            <button class="chip favorite-chip" data-favorite="XAUUSD">XAUUSD</button>
+            <button class="chip favorite-chip" data-favorite="BTCUSDT">BTCUSDT</button>
+          </div>
+          <div id="watchlistList" class="watchlist-list"></div>
+        </article>
+
+        <article class="panel alert-panel">
+          <div class="panel-head">
+            <div><p class="eyebrow" data-i18n="alertMode">Alert-only automation</p><h2 data-i18n="continuousScanner">Continuous Opportunity Scanner</h2></div>
+            <span class="badge" id="scannerBadge" data-i18n="scannerStopped">Stopped</span>
+          </div>
+          <div class="scanner-controls">
+            <label><span data-i18n="minConfidence">Minimum confidence</span><input id="minConfidence" type="number" min="50" max="95" step="1" value="72" /></label>
+            <label><span data-i18n="scanEvery">Scan every</span>
+              <select id="scanEvery">
+                <option value="60000" data-i18n="oneMinute">1 minute</option>
+                <option value="180000" data-i18n="threeMinutes">3 minutes</option>
+                <option value="300000" selected data-i18n="fiveMinutes">5 minutes</option>
+                <option value="900000" data-i18n="fifteenMinutes">15 minutes</option>
+              </select>
+            </label>
+          </div>
+          <div class="button-row">
+            <button class="primary" id="scanWatchlistBtn" type="button" data-i18n="scanNow">Scan Now</button>
+            <button class="ghost" id="startScannerBtn" type="button" data-i18n="startScanner">Start Scanner</button>
+            <button class="ghost" id="stopScannerBtn" type="button" data-i18n="stopScanner">Stop Scanner</button>
+          </div>
+          <div class="status-line" id="watchStatus" data-i18n="watchReady">Add pairs, then scan for strong opportunities.</div>
+          <div id="alertList" class="alert-list"></div>
+          <p class="tiny disclaimer" data-i18n="automationDisclaimer">Professional safety: this prototype sends alerts only. Live auto-execution requires broker API integration, user authorization, audit logs, kill switches, and regulated compliance controls.</p>
+        </article>
+      </section>
+
       <section class="decision-grid" id="analysis">
         <article class="panel decision-card">
           <div class="panel-head">
@@ -176,6 +227,73 @@
       </section>
 
       <section class="school-grid" id="schoolsGrid" aria-label="Multi-school analysis results"></section>
+
+      <section class="ai-studio panel" id="ai-automation">
+        <div class="panel-head">
+          <div><p class="eyebrow" data-i18n="aiAutomationStudio">AI Automation Studio</p><h2 data-i18n="aiAutomationStudioSub">Automated copilot, smart alerts, risk governor and next-best action</h2></div>
+          <span class="badge" id="automationBadge" data-i18n="noAutomationYet">Awaiting analysis</span>
+        </div>
+        <div id="aiStudioGrid" class="ai-studio-grid"></div>
+        <div id="smartAlertList" class="smart-alert-list"></div>
+      </section>
+
+
+      <section class="professional-grid" id="professional-map">
+        <article class="panel map-panel">
+          <div class="panel-head">
+            <div><p class="eyebrow" data-i18n="professionalMarketMap">Professional Market Map</p><h2 data-i18n="professionalMarketMapSub">All schools, levels, patterns and trend diagnostics in one visual chart</h2></div>
+            <button class="ghost" id="exportMapBtn" type="button" data-i18n="exportMap">Export Map PNG</button>
+          </div>
+          <div id="professionalSnapshot" class="professional-snapshot"></div>
+          <div class="map-toolbar" aria-label="Professional chart controls">
+            <div>
+              <b data-i18n="institutionalChart">Institutional chart</b>
+              <small data-i18n="adaptiveScale">Adaptive scale enabled</small>
+            </div>
+            <div id="mapLayerControls" class="map-layer-controls"></div>
+          </div>
+          <div class="chart-stage-grid">
+            <div class="analysis-chart-shell main-chart-shell">
+              <div class="chart-watermark"><b data-i18n="technicalDrawingChart">Technical Drawing Chart</b><span data-i18n="clearInstitutionalView">Clean institutional view</span></div>
+              <canvas id="analysisMapCanvas" class="analysis-map" aria-label="Professional technical analysis map"></canvas>
+            </div>
+            <div class="sk-analysis-card">
+              <div class="sk-card-head"><b data-i18n="skAnalysisChart">SK / SMC Analysis</b><span data-i18n="skAnalysisSub">Structure, liquidity, BOS/CHoCH and order blocks</span></div>
+              <canvas id="skAnalysisCanvas" class="sk-analysis-map" aria-label="SK and SMC analysis map"></canvas>
+              <div id="tradeCompass" class="trade-compass"></div>
+            </div>
+          </div>
+          <div id="mapHud" class="map-hud"></div>
+          <div id="analysisLayerBoard" class="analysis-layer-board"></div>
+          <div class="analysis-desk-grid">
+            <div id="technicalStoryboard" class="desk-panel"></div>
+            <div id="marketStructureBoard" class="desk-panel"></div>
+          </div>
+          <div class="map-legend">
+            <span><i class="legend-dot support"></i><b data-i18n="mapLegendSupport">Support</b></span>
+            <span><i class="legend-dot resistance"></i><b data-i18n="mapLegendResistance">Resistance</b></span>
+            <span><i class="legend-dot entry"></i><b data-i18n="mapLegendEntry">Entry</b></span>
+            <span><i class="legend-dot fib"></i><b data-i18n="mapLegendFib">Fibonacci</b></span>
+            <span><i class="legend-dot zone"></i><b data-i18n="mapLegendZone">Supply/Demand</b></span>
+          </div>
+          <div class="table map-details" id="mapDetails"></div>
+        </article>
+        <aside class="professional-side">
+          <article class="panel">
+            <div class="panel-head"><div><h2 data-i18n="confluenceMatrix">Confluence Matrix</h2><span data-i18n="confluenceMatrixSub">Execution readiness controls</span></div></div>
+            <div class="confluence-matrix" id="confluenceMatrix"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><h2 data-i18n="playbook">Execution Playbook</h2><span data-i18n="playbookSub">Professional action protocol</span></div></div>
+            <ol class="clean-list playbook-list" id="playbookList"><li data-i18n="noProfessionalMap">Run analysis to generate the professional market map.</li></ol>
+          </article>
+          <article class="panel">
+            <div class="panel-head"><div><h2 data-i18n="deskGovernance">Desk Governance</h2><span data-i18n="deskGovernanceSub">Trust, safety and operational filters</span></div></div>
+            <div class="governance-list" id="governanceList"></div>
+          </article>
+        </aside>
+      </section>
+
 
       <section class="data-grid">
         <article class="panel">

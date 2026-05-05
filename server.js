@@ -105,7 +105,7 @@ async function fetchYahooCandles(symbolInfo, timeframe = "intraday") {
     const response = await fetch(url, {
       signal: controller.signal,
       headers: {
-        "user-agent": "THN-AI-Trader/2.0"
+        "user-agent": "THN-AI-Trader/3.0"
       }
     });
     if (!response.ok) throw new Error(`Yahoo returned HTTP ${response.status}`);
@@ -314,6 +314,440 @@ function finalizeSchool(item) {
   return item;
 }
 
+
+function average(arr) {
+  const clean = (arr || []).map(Number).filter(Number.isFinite);
+  return clean.length ? clean.reduce((a, b) => a + b, 0) / clean.length : 0;
+}
+
+function percentile(arr, pct) {
+  const clean = (arr || []).map(Number).filter(Number.isFinite).sort((a, b) => a - b);
+  if (!clean.length) return 0;
+  const idx = clamp(Math.round((clean.length - 1) * pct), 0, clean.length - 1);
+  return clean[idx];
+}
+
+function findSwingPoints(candles, lookback = 120, wing = 2) {
+  const start = Math.max(wing, candles.length - lookback);
+  const highs = [];
+  const lows = [];
+  for (let i = start; i < candles.length - wing; i++) {
+    const current = candles[i];
+    let isHigh = true;
+    let isLow = true;
+    for (let j = i - wing; j <= i + wing; j++) {
+      if (j === i) continue;
+      if (candles[j].high >= current.high) isHigh = false;
+      if (candles[j].low <= current.low) isLow = false;
+    }
+    if (isHigh) highs.push({ index: i, time: current.time, price: current.high });
+    if (isLow) lows.push({ index: i, time: current.time, price: current.low });
+  }
+  return { highs, lows };
+}
+
+function clusterPriceLevels(points, atrValue, type, currentPrice) {
+  const tolerance = Math.max(atrValue * 0.45, Math.abs(currentPrice) * 0.00035);
+  const sorted = [...points].sort((a, b) => a.price - b.price);
+  const clusters = [];
+  for (const point of sorted) {
+    let cluster = clusters.find(c => Math.abs(c.price - point.price) <= tolerance);
+    if (!cluster) {
+      cluster = { type, price: point.price, touches: 0, lastTouchIndex: point.index, prices: [] };
+      clusters.push(cluster);
+    }
+    cluster.prices.push(point.price);
+    cluster.touches += 1;
+    cluster.lastTouchIndex = Math.max(cluster.lastTouchIndex, point.index);
+    cluster.price = average(cluster.prices);
+  }
+  return clusters
+    .map(c => ({
+      type: c.type,
+      price: round(c.price, 6),
+      touches: c.touches,
+      distancePct: round(((c.price - currentPrice) / currentPrice) * 100, 3),
+      strength: round(clamp(35 + c.touches * 13 + (c.lastTouchIndex / Math.max(1, points.at(-1)?.index || 1)) * 15, 35, 96), 0)
+    }))
+    .sort((a, b) => Math.abs(a.distancePct) - Math.abs(b.distancePct));
+}
+
+function candleBody(candle) {
+  return Math.abs(candle.close - candle.open);
+}
+
+function candleRange(candle) {
+  return Math.max(Math.abs(candle.high - candle.low), 1e-12);
+}
+
+function detectProfessionalPatterns(candles, structure, atrValue, price) {
+  const signals = [];
+  const names = [];
+  const recent = candles.slice(-5);
+  const last = candles.at(-1);
+  const prev = candles.at(-2) || last;
+  const body = candleBody(last);
+  const range = candleRange(last);
+  const upperWick = last.high - Math.max(last.open, last.close);
+  const lowerWick = Math.min(last.open, last.close) - last.low;
+  if (lowerWick > body * 1.6 && last.close > last.open) {
+    signals.push({ name: "Bullish rejection candle", direction: "BULLISH", score: 11, confidence: 68, reason: "Latest candle rejected lower prices with a dominant lower wick." });
+    names.push("Bullish rejection candle");
+  }
+  if (upperWick > body * 1.6 && last.close < last.open) {
+    signals.push({ name: "Bearish rejection candle", direction: "BEARISH", score: -11, confidence: 68, reason: "Latest candle rejected higher prices with a dominant upper wick." });
+    names.push("Bearish rejection candle");
+  }
+  if (last.close > last.open && prev.close < prev.open && last.close > prev.open && last.open < prev.close) {
+    signals.push({ name: "Bullish engulfing", direction: "BULLISH", score: 16, confidence: 74, reason: "Bullish engulfing candle detected near the latest close." });
+    names.push("Bullish engulfing");
+  }
+  if (last.close < last.open && prev.close > prev.open && last.open > prev.close && last.close < prev.open) {
+    signals.push({ name: "Bearish engulfing", direction: "BEARISH", score: -16, confidence: 74, reason: "Bearish engulfing candle detected near the latest close." });
+    names.push("Bearish engulfing");
+  }
+  if (body / range < 0.25 && Math.max(upperWick, lowerWick) > range * 0.33) {
+    signals.push({ name: "Indecision candle", direction: "NEUTRAL", score: 0, confidence: 56, reason: "Latest candle is indecisive; confirmation candle is required." });
+    names.push("Indecision candle");
+  }
+  const swings = findSwingPoints(candles, 150, 2);
+  const lastHighs = swings.highs.slice(-4);
+  const lastLows = swings.lows.slice(-4);
+  if (lastHighs.length >= 2) {
+    const h1 = lastHighs.at(-2).price;
+    const h2 = lastHighs.at(-1).price;
+    if (Math.abs(h2 - h1) <= atrValue * 0.65 && price < h2) {
+      signals.push({ name: "Double-top pressure", direction: "BEARISH", score: -13, confidence: 63, reason: "Two recent swing highs formed a nearby resistance ceiling." });
+      names.push("Double-top pressure");
+    }
+  }
+  if (lastLows.length >= 2) {
+    const l1 = lastLows.at(-2).price;
+    const l2 = lastLows.at(-1).price;
+    if (Math.abs(l2 - l1) <= atrValue * 0.65 && price > l2) {
+      signals.push({ name: "Double-bottom reaction", direction: "BULLISH", score: 13, confidence: 63, reason: "Two recent swing lows formed a nearby support base." });
+      names.push("Double-bottom reaction");
+    }
+  }
+  const compression = recent.every(c => candleRange(c) < atrValue * 1.4);
+  if (compression) {
+    signals.push({ name: "Volatility compression", direction: "NEUTRAL", score: 0, confidence: 61, reason: "Recent candles are compressed; prepare for breakout confirmation." });
+    names.push("Volatility compression");
+  }
+  if (structure.sweepDown) names.push("Sell-side liquidity sweep");
+  if (structure.sweepUp) names.push("Buy-side liquidity sweep");
+  return { signals, names: [...new Set(names)].slice(0, 8) };
+}
+
+function buildTrendChannel(candles, price) {
+  const slice = candles.slice(-80);
+  const highs = slice.map(c => c.high);
+  const lows = slice.map(c => c.low);
+  const closes = slice.map(c => c.close);
+  const closeSlope = linearRegressionSlope(closes);
+  const highSlope = linearRegressionSlope(highs);
+  const lowSlope = linearRegressionSlope(lows);
+  const direction = closeSlope > price * 0.00008 ? "UPTREND" : closeSlope < -price * 0.00008 ? "DOWNTREND" : "SIDEWAYS";
+  const projectedMid = closes.at(-1);
+  const spread = Math.max(standardDeviation(closes), Math.abs(average(highs) - average(lows)) / 2);
+  const quality = clamp(50 + Math.abs(closeSlope / Math.max(price, 1e-9)) * 85000 - standardDeviation(closes.slice(-20).map((c, i, arr) => i ? (c - arr[i - 1]) / arr[i - 1] : 0)) * 1000, 35, 92);
+  return {
+    direction,
+    slopePct: round((closeSlope / price) * 100, 5),
+    channelQuality: round(quality, 0),
+    upper: round(projectedMid + spread * 1.45, 6),
+    mid: round(projectedMid, 6),
+    lower: round(projectedMid - spread * 1.45, 6)
+  };
+}
+
+function buildFibonacciLevels(structure) {
+  const high = Number(structure.recentHigh);
+  const low = Number(structure.recentLow);
+  const span = high - low;
+  if (!Number.isFinite(span) || span <= 0) return [];
+  return [0.236, 0.382, 0.5, 0.618, 0.786].map(ratio => ({
+    ratio,
+    label: `${round(ratio * 100, 1)}%`,
+    price: round(high - span * ratio, 6)
+  }));
+}
+
+function buildSupplyDemandZones(candles, atrValue) {
+  const impulseThreshold = Math.max(atrValue * 1.25, 1e-9);
+  const zones = [];
+  for (let i = Math.max(1, candles.length - 100); i < candles.length; i++) {
+    const c = candles[i];
+    const impulse = c.close - c.open;
+    if (Math.abs(impulse) < impulseThreshold) continue;
+    const prior = candles[i - 1];
+    const type = impulse > 0 ? "DEMAND" : "SUPPLY";
+    zones.push({
+      type,
+      from: round(type === "DEMAND" ? Math.min(prior.low, c.open) : Math.max(prior.high, c.open), 6),
+      to: round(type === "DEMAND" ? Math.max(prior.low, c.open) : Math.min(prior.high, c.open), 6),
+      strength: round(clamp(55 + Math.abs(impulse / atrValue) * 10, 55, 94), 0),
+      time: c.time
+    });
+  }
+  return zones.slice(-6).reverse();
+}
+
+
+function buildSmartMoneyMap(candles, structure, atrValue, price) {
+  const swings = findSwingPoints(candles, 160, 2);
+  const highs = swings.highs || [];
+  const lows = swings.lows || [];
+  const combined = [
+    ...highs.map(p => ({ ...p, kind: "HIGH" })),
+    ...lows.map(p => ({ ...p, kind: "LOW" }))
+  ].sort((a, b) => a.index - b.index);
+
+  const pivots = combined.slice(-10).map((point, idx, arr) => {
+    const prevSame = [...arr.slice(0, idx)].reverse().find(x => x.kind === point.kind);
+    let label = point.kind === "HIGH" ? "SH" : "SL";
+    if (prevSame) {
+      if (point.kind === "HIGH") label = point.price >= prevSame.price ? "HH" : "LH";
+      else label = point.price <= prevSame.price ? "LL" : "HL";
+    }
+    return { index: point.index, price: round(point.price, 6), kind: point.kind, label };
+  }).slice(-8);
+
+  const lastHigh = highs.at(-1);
+  const lastLow = lows.at(-1);
+  const smcEvents = [];
+  if (lastHigh && price > lastHigh.price + atrValue * 0.08) {
+    smcEvents.push({ type: structure.trendStructure === "Bearish structure" ? "CHoCH" : "BOS", direction: "BULLISH", price: round(lastHigh.price, 6), index: lastHigh.index, label: structure.trendStructure === "Bearish structure" ? "Bullish CHoCH" : "Bullish BOS" });
+  }
+  if (lastLow && price < lastLow.price - atrValue * 0.08) {
+    smcEvents.push({ type: structure.trendStructure === "Bullish structure" ? "CHoCH" : "BOS", direction: "BEARISH", price: round(lastLow.price, 6), index: lastLow.index, label: structure.trendStructure === "Bullish structure" ? "Bearish CHoCH" : "Bearish BOS" });
+  }
+
+  const liquidityPools = [];
+  const recentHighs = highs.slice(-4);
+  const recentLows = lows.slice(-4);
+  if (recentHighs.length >= 2) {
+    const a = recentHighs.at(-1), b = recentHighs.at(-2);
+    if (Math.abs(a.price - b.price) <= atrValue * 0.55) liquidityPools.push({ type: "EQH", price: round((a.price + b.price) / 2, 6), label: "Equal Highs liquidity" });
+  }
+  if (recentLows.length >= 2) {
+    const a = recentLows.at(-1), b = recentLows.at(-2);
+    if (Math.abs(a.price - b.price) <= atrValue * 0.55) liquidityPools.push({ type: "EQL", price: round((a.price + b.price) / 2, 6), label: "Equal Lows liquidity" });
+  }
+
+  const orderBlocks = [];
+  for (let i = Math.max(2, candles.length - 90); i < candles.length - 3; i++) {
+    const c = candles[i];
+    const next = candles[i + 1];
+    const impulse = next.close - next.open;
+    if (!Number.isFinite(impulse)) continue;
+    if (c.close < c.open && impulse > atrValue * 0.75) {
+      orderBlocks.push({ type: "BULLISH_OB", from: round(Math.min(c.open, c.close), 6), to: round(c.high, 6), strength: round(clamp(58 + Math.abs(impulse / atrValue) * 10, 58, 92), 0), index: i });
+    }
+    if (c.close > c.open && impulse < -atrValue * 0.75) {
+      orderBlocks.push({ type: "BEARISH_OB", from: round(c.low, 6), to: round(Math.max(c.open, c.close), 6), strength: round(clamp(58 + Math.abs(impulse / atrValue) * 10, 58, 92), 0), index: i });
+    }
+  }
+
+  return {
+    pivots,
+    smcEvents: smcEvents.slice(-3),
+    liquidityPools: liquidityPools.slice(-3),
+    orderBlocks: orderBlocks.slice(-4),
+    summary: [
+      ...smcEvents.map(x => x.label),
+      ...liquidityPools.map(x => x.label),
+      ...orderBlocks.slice(-2).map(x => x.type === "BULLISH_OB" ? "Bullish order block" : "Bearish order block")
+    ].slice(0, 6)
+  };
+}
+
+
+function buildVolumeProfile(candles, price) {
+  const volumes = values(candles, "volume");
+  const recentVolume = average(volumes.slice(-20));
+  const baselineVolume = average(volumes.slice(-80));
+  const volumeRatio = baselineVolume ? recentVolume / baselineVolume : 1;
+  const closes = values(candles, "close");
+  const sorted = closes.slice(-120).sort((a, b) => a - b);
+  const valueLow = percentile(sorted, 0.2);
+  const valueHigh = percentile(sorted, 0.8);
+  const valueAreaPosition = valueHigh > valueLow ? clamp((price - valueLow) / (valueHigh - valueLow), 0, 1) * 100 : 50;
+  return {
+    recentVolume: round(recentVolume, 0),
+    volumeRatio: round(volumeRatio, 2),
+    volumeState: volumeRatio > 1.35 ? "EXPANDING" : volumeRatio < 0.75 ? "QUIET" : "NORMAL",
+    valueAreaLow: round(valueLow, 6),
+    valueAreaHigh: round(valueHigh, 6),
+    valueAreaPosition: round(valueAreaPosition, 1)
+  };
+}
+
+function buildSessionInfo(marketTime) {
+  const date = new Date(marketTime || Date.now());
+  const hour = date.getUTCHours();
+  let session = "Asia / rollover";
+  let quality = 58;
+  if (hour >= 7 && hour < 12) { session = "London active"; quality = 82; }
+  else if (hour >= 12 && hour < 16) { session = "London-New York overlap"; quality = 90; }
+  else if (hour >= 16 && hour < 21) { session = "New York active"; quality = 78; }
+  else if (hour >= 21 || hour < 1) { session = "Rollover / thin liquidity"; quality = 42; }
+  return { utcHour: hour, session, timingQuality: quality };
+}
+
+function buildProfessionalLayer({ candles, price, atr14, atrPct, ema20, ema50, ema200, rsi14, macdData, bb, structure, rangePosition, schools, decision, confidence, grade, consensusScore, riskPct, exposurePct, volatilityLabel, market, timeframe, request, patternPack }) {
+  const swings = findSwingPoints(candles, 160, 2);
+  const supports = clusterPriceLevels(swings.lows.filter(p => p.price <= price), atr14, "SUPPORT", price).slice(0, 5);
+  const resistances = clusterPriceLevels(swings.highs.filter(p => p.price >= price), atr14, "RESISTANCE", price).slice(0, 5);
+  const trend = buildTrendChannel(candles, price);
+  const fibonacci = buildFibonacciLevels(structure);
+  const zones = buildSupplyDemandZones(candles, atr14);
+  const smcMap = buildSmartMoneyMap(candles, structure, atr14, price);
+  const volumeProfile = buildVolumeProfile(candles, price);
+  const session = buildSessionInfo(market.marketTime);
+  const schoolAgreement = schools.length ? (schools.filter(s => (decision === "BUY" && s.bias === "BULLISH") || (decision === "SELL" && s.bias === "BEARISH")).length / schools.length) * 100 : 0;
+  const dataQuality = market.warning ? 45 : 92;
+  const riskQuality = clamp(100 - Math.max(0, riskPct - 1) * 18 - Math.max(0, exposurePct - 300) * 0.05, 25, 100);
+  const structureQuality = clamp(45 + (supports[0]?.strength || 45) * 0.18 + (resistances[0]?.strength || 45) * 0.18 + (trend.channelQuality || 50) * 0.28, 35, 94);
+  const executionReadiness = round(clamp(confidence * 0.34 + schoolAgreement * 0.22 + riskQuality * 0.20 + dataQuality * 0.14 + session.timingQuality * 0.10, 20, 96), 0);
+  const marketRegime = volatilityLabel === "Extreme" ? "High-risk volatility expansion" : trend.direction === "SIDEWAYS" ? "Range / mean-reversion environment" : `${trend.direction.toLowerCase()} continuation environment`;
+  const confluence = [
+    { name: "Multi-school agreement", score: round(schoolAgreement, 0), status: schoolAgreement >= 58 ? "PASS" : decision === "WAIT" ? "WAIT" : "WARNING", detail: `${round(schoolAgreement, 0)}% of directional schools align with ${decision}.` },
+    { name: "Data quality", score: dataQuality, status: dataQuality >= 80 ? "PASS" : "WARNING", detail: market.warning ? "Live data fallback is active." : "Live market feed returned usable candles." },
+    { name: "Risk governance", score: round(riskQuality, 0), status: riskQuality >= 75 ? "PASS" : "WARNING", detail: `Risk ${round(riskPct, 2)}%, exposure ${round(exposurePct, 1)}%.` },
+    { name: "Structure quality", score: round(structureQuality, 0), status: structureQuality >= 68 ? "PASS" : "WAIT", detail: `${structure.trendStructure}; ${supports.length} supports and ${resistances.length} resistances mapped.` },
+    { name: "Timing session", score: session.timingQuality, status: session.timingQuality >= 70 ? "PASS" : "WARNING", detail: session.session }
+  ];
+  const playbook = decision === "BUY"
+    ? ["Wait for bullish confirmation above the mapped support or trend midline.", "Avoid buying directly into the nearest resistance unless price closes through it.", "Move to break-even only after TP1 or a clear structure shift."]
+    : decision === "SELL"
+      ? ["Wait for bearish confirmation below the mapped resistance or trend midline.", "Avoid selling directly into the nearest support unless price closes through it.", "Reduce exposure if volatility expands before entry."]
+      : ["No execution playbook is active because the consensus is neutral.", "Mark support/resistance alerts and wait for a clean break or rejection.", "Keep watchlist scanning active for a stronger setup."];
+  return {
+    executionReadiness,
+    marketRegime,
+    grade,
+    schoolAgreement: round(schoolAgreement, 0),
+    dataQuality,
+    riskQuality: round(riskQuality, 0),
+    structureQuality: round(structureQuality, 0),
+    session,
+    trend,
+    volumeProfile,
+    smc: smcMap,
+    patterns: patternPack.names,
+    patternSignals: patternPack.signals,
+    levels: { supports, resistances },
+    fibonacci,
+    zones,
+    confluence,
+    playbook,
+    analysisMap: {
+      price: round(price, 6),
+      atr: round(atr14, 6),
+      atrPct: round(atrPct, 3),
+      rangePosition: round(rangePosition * 100, 2),
+      support: round(structure.support, 6),
+      resistance: round(structure.resistance, 6),
+      trend,
+      supports,
+      resistances,
+      fibonacci,
+      zones,
+      smc: smcMap,
+      patterns: patternPack.names,
+      candles: candles.slice(-90).map(c => ({ time: c.time, open: round(c.open, 6), high: round(c.high, 6), low: round(c.low, 6), close: round(c.close, 6), volume: c.volume || 0 }))
+    },
+    professionalChecklist: [
+      { item: "Broker spread check", status: "WAIT", detail: "Confirm spread, commission and swap before execution." },
+      { item: "News calendar check", status: "WAIT", detail: "Avoid high-impact news windows unless this is part of your plan." },
+      { item: "Kill-switch rule", status: riskPct <= 2 ? "PASS" : "WARNING", detail: "Stop trading after daily loss limit or two consecutive rule violations." },
+      { item: "Alert-only policy", status: "PASS", detail: "The platform does not send live orders without broker authorization." }
+    ]
+  };
+}
+
+
+function buildAIAutomation({ symbol, decision, confidence, grade, professional, riskPct, exposurePct, structure, price, atr14, rangePosition, schools, volatilityLabel }) {
+  const readiness = Number(professional?.executionReadiness || 0);
+  const schoolAgreement = Number(professional?.schoolAgreement || 0);
+  const dataQuality = Number(professional?.dataQuality || 0);
+  const riskQuality = Number(professional?.riskQuality || 0);
+  const structureQuality = Number(professional?.structureQuality || 0);
+  const automationScore = round(clamp(readiness * 0.32 + riskQuality * 0.22 + dataQuality * 0.18 + structureQuality * 0.16 + confidence * 0.12, 0, 100), 0);
+  const botStatus = riskPct > 2 ? "RISK_LOCKED" : decision === "WAIT" ? "AI_PATROL" : automationScore >= 72 ? "CONDITIONAL_ALERT_READY" : "REVIEW_ONLY";
+  const mode = decision === "WAIT" ? "AI patrol mode" : "Conditional alert mode";
+  const support = professional?.levels?.supports?.[0]?.price ?? structure?.support;
+  const resistance = professional?.levels?.resistances?.[0]?.price ?? structure?.resistance;
+  const atrBuffer = Math.max(Number(atr14 || 0) * 0.18, Math.abs(Number(price || 1)) * 0.00015);
+  const bullishCount = (schools || []).filter(s => s.bias === "BULLISH").length;
+  const bearishCount = (schools || []).filter(s => s.bias === "BEARISH").length;
+  const neutralCount = (schools || []).filter(s => s.bias === "NEUTRAL").length;
+  const smartAlerts = [
+    {
+      name: "Resistance breakout confirmation",
+      priority: decision === "BUY" ? "HIGH" : "MEDIUM",
+      trigger: resistance ? round(resistance + atrBuffer, 6) : null,
+      condition: "Alert when candle closes above resistance with RSI not overextended and spread acceptable.",
+      reason: "Confirms bullish continuation instead of buying directly into resistance."
+    },
+    {
+      name: "Support rejection confirmation",
+      priority: decision === "SELL" ? "HIGH" : "MEDIUM",
+      trigger: support ? round(support - atrBuffer, 6) : null,
+      condition: "Alert when price rejects support/resistance zone with confirmation candle.",
+      reason: "Filters false breaks and avoids emotional entries."
+    },
+    {
+      name: "Invalidation guard",
+      priority: "HIGH",
+      trigger: decision === "BUY" ? (support ? round(support - atrBuffer, 6) : null) : decision === "SELL" ? (resistance ? round(resistance + atrBuffer, 6) : null) : null,
+      condition: "Disable signal when price violates the nearest institutional level.",
+      reason: "Prevents stale setups from remaining active after structure changes."
+    },
+    {
+      name: "Momentum expansion watch",
+      priority: volatilityLabel === "Low" ? "HIGH" : "MEDIUM",
+      trigger: null,
+      condition: "Alert when ATR and candle body expand after compression.",
+      reason: "The AI waits for momentum before activating stronger opportunity alerts."
+    }
+  ];
+  const nextBestAction = decision === "WAIT"
+    ? "Keep AI Patrol active, monitor breakout/rejection alerts, and avoid execution until structure confirms."
+    : automationScore >= 72
+      ? `Prepare ${decision} plan in alert-only mode and require final confirmation before manual execution.`
+      : "Do not execute yet; improve confluence or wait for a cleaner candle close.";
+  return {
+    mode,
+    botStatus,
+    automationScore,
+    nextBestAction,
+    schoolBalance: { bullish: bullishCount, bearish: bearishCount, neutral: neutralCount },
+    smartAlerts,
+    riskGovernor: {
+      maxRiskPct: riskPct <= 1 ? "Professional" : riskPct <= 2 ? "Acceptable" : "Too aggressive",
+      exposureState: exposurePct <= 100 ? "Controlled" : exposurePct <= 300 ? "Elevated" : "High exposure",
+      rules: [
+        "No live order execution in prototype mode.",
+        "Block setup during high-impact news or abnormal spread.",
+        "Stop scanning after daily loss limit or repeated rule violations.",
+        "Require manual confirmation for every trade ticket."
+      ]
+    },
+    executionProtocol: [
+      `AI reads ${symbol} across ${schools?.length || 0} schools and assigns grade ${grade}.`,
+      `Automation score ${automationScore}/100 with ${schoolAgreement}% school agreement.`,
+      "Only alerts are generated; execution remains manual and risk-controlled.",
+      "If price reaches an alert trigger, re-run analysis before entering."
+    ],
+    chartBrief: {
+      technical: `Trend: ${professional?.trend?.direction || "--"}; structure quality ${structureQuality}/100; nearest support ${round(support, 6)} and resistance ${round(resistance, 6)}.`,
+      sk: (professional?.smc?.summary || []).length ? professional.smc.summary.join(" | ") : "SK/SMC map is monitoring pivots, liquidity, BOS/CHoCH and order blocks."
+    }
+  };
+}
+
 function buildAnalysis(market, request = {}) {
   const candles = market.candles;
   const closes = values(candles, "close");
@@ -344,6 +778,7 @@ function buildAnalysis(market, request = {}) {
   const slope50 = linearRegressionSlope(closes.slice(-50));
   const slopePct = (slope50 / price) * 100;
   const volatilityLabel = atrPct > 3 ? "Extreme" : atrPct > 1.4 ? "High" : atrPct > 0.45 ? "Normal" : "Low";
+  const patternPack = detectProfessionalPatterns(candles, structure, atr14, price);
 
   const technical = schoolTemplate("Technical Analysis");
   if (ema20 && ema50 && ema20 > ema50) addScore(technical, 24, "EMA 20 is above EMA 50, confirming bullish trend alignment.");
@@ -398,14 +833,40 @@ function buildAnalysis(market, request = {}) {
   if (request.sentiment === "bearish") addScore(macro, -12, "User-provided sentiment context is bearish.");
   finalizeSchool(macro);
 
+  const patternSchool = schoolTemplate("Pattern Recognition");
+  for (const signal of patternPack.signals) {
+    addScore(patternSchool, signal.score, signal.reason);
+    if (signal.direction === "NEUTRAL") patternSchool.warnings.push(signal.reason);
+  }
+  if (!patternPack.signals.length) patternSchool.reasons.push("No high-probability chart pattern is dominant at the latest candle.");
+  finalizeSchool(patternSchool);
+
+  const volatilitySchool = schoolTemplate("Volume & Volatility");
+  if (volatilityLabel === "Low") volatilitySchool.reasons.push("Low volatility regime: wait for expansion confirmation before chasing entries.");
+  if (volatilityLabel === "Normal") volatilitySchool.reasons.push("Volatility regime is tradable with normal risk controls.");
+  if (volatilityLabel === "High") volatilitySchool.warnings.push("High volatility: reduce size and demand cleaner confirmation.");
+  if (volatilityLabel === "Extreme") volatilitySchool.warnings.push("Extreme volatility: professional desk mode is defensive.");
+  if (bb.widthPct && bb.widthPct < 1) volatilitySchool.reasons.push("Bollinger bandwidth is compressed; breakout alert conditions are relevant.");
+  if (bb.widthPct && bb.widthPct > 5) volatilitySchool.warnings.push("Bollinger bandwidth is wide; avoid late entries into exhaustion.");
+  finalizeSchool(volatilitySchool);
+
+  const governanceSchool = schoolTemplate("Risk Governance");
+  governanceSchool.reasons.push("Risk governance validates whether the signal is tradable, not only directionally attractive.");
+  if (riskPct <= 1) addScore(governanceSchool, 6, "Selected risk is conservative and suitable for professional process discipline.");
+  if (riskPct > 2) { addScore(governanceSchool, -8, "Selected risk is above a conservative professional guardrail."); governanceSchool.warnings.push("Reduce risk per trade or require stronger confirmation."); }
+  finalizeSchool(governanceSchool);
+
   const weights = {
-    "Technical Analysis": 0.28,
-    "Price Action": 0.24,
-    "Smart Money Concepts": 0.18,
-    "Quantitative Model": 0.20,
-    "Fundamental / Sentiment Context": 0.10
+    "Technical Analysis": 0.22,
+    "Price Action": 0.19,
+    "Smart Money Concepts": 0.16,
+    "Quantitative Model": 0.17,
+    "Fundamental / Sentiment Context": 0.08,
+    "Pattern Recognition": 0.10,
+    "Volume & Volatility": 0.04,
+    "Risk Governance": 0.04
   };
-  const schools = [technical, priceAction, smartMoney, quant, macro];
+  const schools = [technical, priceAction, smartMoney, quant, macro, patternSchool, volatilitySchool, governanceSchool];
   const consensusScore = schools.reduce((sum, s) => sum + s.directionScore * weights[s.name], 0);
   const absConsensus = Math.abs(consensusScore);
   let decision = "WAIT";
@@ -457,6 +918,8 @@ function buildAnalysis(market, request = {}) {
   }));
 
   const backtest = simulateBacktest({ confidence, rr: desiredRR, riskPct, accountBalance, consensusScore });
+  const professional = buildProfessionalLayer({ candles, price, atr14, atrPct, ema20, ema50, ema200, rsi14, macdData, bb, structure, rangePosition, schools, decision, confidence, grade, consensusScore, riskPct, exposurePct, volatilityLabel, market, timeframe, request, patternPack });
+  const aiAutomation = buildAIAutomation({ symbol, decision, confidence, grade, professional, riskPct, exposurePct, structure, price, atr14, rangePosition, schools, volatilityLabel });
   const allReasons = schools.flatMap(s => s.reasons.slice(0, 2));
   const allWarnings = [...riskWarnings, ...schools.flatMap(s => s.warnings)].filter(Boolean);
 
@@ -534,6 +997,8 @@ function buildAnalysis(market, request = {}) {
     checklist: buildChecklist({ decision, riskPct, volatilityLabel, confidence, market, rsi14, stopLoss }),
     scenarios,
     backtest,
+    professional,
+    aiAutomation,
     candles: candles.slice(-160).map(c => ({ time: c.time, open: round(c.open, 6), high: round(c.high, 6), low: round(c.low, 6), close: round(c.close, 6), volume: c.volume })),
     aiNarrative: buildNarrative({ symbol, decision, confidence, grade, consensusLabel, schools, allWarnings, timeframe, market })
   };
@@ -597,6 +1062,54 @@ function buildNarrative({ symbol, decision, confidence, grade, consensusLabel, s
     .join("; ");
   const caution = allWarnings.length ? allWarnings[0] : "No major internal warning was detected.";
   return `THN AI Trader classifies ${symbol} as ${decision} on the ${timeframe} profile with ${confidence}% confidence and grade ${grade}. The multi-school consensus is ${consensusLabel}. Strongest modules: ${leaders || "no directional module dominance"}. Data source: ${market.source}. Main caution: ${caution} This output is an analytical decision-support report, not financial advice.`;
+}
+
+
+function buildAutomationSignal(analysis, minConfidence = 72) {
+  const decision = analysis.decision;
+  const isDirectional = decision === "BUY" || decision === "SELL";
+  const warningText = (analysis.warnings || []).join(" ").toLowerCase();
+  const liveData = !warningText.includes("demo data") && !warningText.includes("synthetic") && !String(analysis.marketDataSource || "").toLowerCase().includes("demo");
+  const stopReady = Boolean(analysis.stopLoss && analysis.targets?.length);
+  const riskPct = Number(analysis.risk?.riskPct || 0);
+  const exposurePct = Number(analysis.risk?.exposurePct || 0);
+  const riskQuality = stopReady && riskPct <= 2 && exposurePct <= 500 ? 100 : stopReady && riskPct <= 3 ? 78 : stopReady ? 60 : 35;
+  const dataQuality = liveData ? 96 : 56;
+  const desiredBias = decision === "BUY" ? "BULLISH" : decision === "SELL" ? "BEARISH" : "NEUTRAL";
+  const schools = Array.isArray(analysis.schools) ? analysis.schools : [];
+  const alignedSchools = isDirectional ? schools.filter(s => s.bias === desiredBias).length : 0;
+  const schoolAgreement = schools.length ? (alignedSchools / schools.length) * 100 : 0;
+  const confidence = Number(analysis.confidence || 0);
+  const trustScore = round(clamp(confidence * 0.45 + dataQuality * 0.22 + riskQuality * 0.20 + schoolAgreement * 0.13, 0, 100), 0);
+  const threshold = clamp(num(minConfidence, 72), 50, 95);
+  const blockedReasons = [];
+  if (!isDirectional) blockedReasons.push("No directional trade signal yet.");
+  if (confidence < threshold) blockedReasons.push(`Confidence ${confidence}% is below the ${threshold}% alert threshold.`);
+  if (!stopReady) blockedReasons.push("Stop-loss and target levels are not ready.");
+  if (!liveData) blockedReasons.push("Live data was unavailable; alert downgraded until verified data returns.");
+  if (riskPct > 2) blockedReasons.push("Risk per trade is above the professional 2% guardrail.");
+  if (exposurePct > 500) blockedReasons.push("Exposure is high relative to account size.");
+  const active = blockedReasons.length === 0 && trustScore >= 72;
+  const severity = active && trustScore >= 84 ? "strong-entry" : active ? "qualified-entry" : isDirectional ? "review" : "none";
+  const directionWord = decision === "BUY" ? "long" : decision === "SELL" ? "short" : "stand aside";
+  return {
+    mode: "ALERT_ONLY",
+    active,
+    severity,
+    trustScore,
+    threshold,
+    alignedSchools,
+    totalSchools: schools.length,
+    liveData,
+    riskQuality: round(riskQuality, 0),
+    dataQuality: round(dataQuality, 0),
+    schoolAgreement: round(schoolAgreement, 0),
+    blockedReasons,
+    summary: active
+      ? `${analysis.symbol} has a ${severity.replace("-", " ")} ${directionWord} setup. Review spread, news, liquidity, and account risk before execution.`
+      : `${analysis.symbol} is not cleared for automation. ${blockedReasons[0] || "Wait for stronger confirmation."}`,
+    executionPolicy: "Alert only. No live order is sent by this prototype."
+  };
 }
 
 function extractJson(text) {
@@ -724,7 +1237,7 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (req.method === "GET" && url.pathname === "/api/health") {
-      return sendJson(res, 200, { ok: true, app: "THN AI Trader", version: "2.0.0", openaiEnabled, serverTime: new Date().toISOString() });
+      return sendJson(res, 200, { ok: true, app: "THN AI Trader", version: "6.0.0", openaiEnabled, serverTime: new Date().toISOString() });
     }
 
     if (req.method === "GET" && url.pathname.startsWith("/api/market/")) {
@@ -752,6 +1265,57 @@ const server = http.createServer(async (req, res) => {
       const analysis = buildAnalysis(market, body);
       const enhanced = await enhanceWithOpenAI(analysis);
       return sendJson(res, 200, enhanced);
+    }
+
+
+    if (req.method === "POST" && url.pathname === "/api/watchlist/scan") {
+      const body = await readBody(req);
+      const symbols = Array.isArray(body.symbols)
+        ? body.symbols
+        : String(body.symbols || "").split(/[,\s]+/);
+      const uniqueSymbols = [...new Set(symbols.map(x => String(x || "").trim().toUpperCase()).filter(Boolean))].slice(0, 25);
+      if (!uniqueSymbols.length) return sendJson(res, 400, { ok: false, error: "No symbols supplied" });
+      const minConfidence = clamp(num(body.minConfidence, 72), 50, 95);
+      const results = [];
+      for (const symbol of uniqueSymbols) {
+        try {
+          const market = await getMarketData(symbol, body.timeframe || "intraday");
+          const analysis = buildAnalysis(market, body);
+          const automation = buildAutomationSignal(analysis, minConfidence);
+          results.push({
+            symbol: analysis.symbol,
+            requestedSymbol: symbol,
+            assetClass: analysis.assetClass,
+            decision: analysis.decision,
+            confidence: analysis.confidence,
+            grade: analysis.grade,
+            consensusScore: analysis.consensusScore,
+            entry: analysis.entry,
+            stopLoss: analysis.stopLoss,
+            targets: analysis.targets,
+            risk: analysis.risk,
+            marketTime: analysis.marketTime,
+            marketDataSource: analysis.marketDataSource,
+            tvSymbol: analysis.tvSymbol,
+            tvInterval: analysis.tvInterval,
+            warnings: analysis.warnings,
+            reasons: analysis.reasons,
+            automation
+          });
+        } catch (error) {
+          results.push({ requestedSymbol: symbol, symbol, decision: "WAIT", confidence: 0, grade: "D", error: error.message, automation: { mode: "ALERT_ONLY", active: false, severity: "error", trustScore: 0, blockedReasons: [error.message], executionPolicy: "Alert only. No live order is sent by this prototype." } });
+        }
+      }
+      const strongAlerts = results.filter(item => item.automation?.active);
+      return sendJson(res, 200, {
+        ok: true,
+        automationMode: "ALERT_ONLY",
+        scannedAt: new Date().toISOString(),
+        minConfidence,
+        count: results.length,
+        strongAlertCount: strongAlerts.length,
+        results
+      });
     }
 
     if (req.method === "GET") {
